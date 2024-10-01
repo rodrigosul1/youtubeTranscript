@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from youtube_transcript_api import YouTubeTranscriptApi
-from youtube_transcript_api._errors import NoTranscriptFound, VideoUnavailable
+from youtube_transcript_api._errors import NoTranscriptFound, VideoUnavailable, TranscriptsDisabled
 
 app = FastAPI()
 
@@ -27,8 +27,14 @@ def generate_transcript(video_id: str):
         transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['en', 'pt'])
         full_text = " ".join([t['text'] for t in transcript])
         return full_text
-    except (NoTranscriptFound, VideoUnavailable) as e:
-        return {"error": str(e)}
+    except NoTranscriptFound:
+        return {"error": "No transcript found for this video"}
+    except VideoUnavailable:
+        return {"error": "Video is unavailable"}
+    except TranscriptsDisabled:
+        return {"error": "Transcripts are disabled for this video"}
+    except Exception as e:
+        return {"error": f"An unexpected error occurred: {str(e)}"}
 
 @app.get("/get-transcript/")
 def get_transcript(url: str):
