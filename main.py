@@ -1,46 +1,34 @@
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from youtube_transcript_api import YouTubeTranscriptApi
-from youtube_transcript_api._errors import NoTranscriptFound, VideoUnavailable, TranscriptsDisabled
+from urllib.parse import urlparse, parse_qs
 
 app = FastAPI()
 
-# Adicionar middleware CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Permitir todos os domínios (você pode restringir conforme necessário)
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-def extract_video_id(video_url: str) -> str:
-    if "v=" in video_url:
-        return video_url.split("v=")[1].split("&")[0]
-    elif "youtu.be/" in video_url:
-        return video_url.split("youtu.be/")[1]
-    else:
-        raise ValueError("URL inválida")
-
-def generate_transcript(video_id: str):
+def generate_transcript(video_id):
     try:
+        # Tenta obter a transcrição do vídeo
         transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['en', 'pt'])
         full_text = " ".join([t['text'] for t in transcript])
         return full_text
-    except NoTranscriptFound:
-        return {"error": "No transcript found for this video"}
-    except VideoUnavailable:
-        return {"error": "Video is unavailable"}
-    except TranscriptsDisabled:
-        return {"error": "Transcripts are disabled for this video"}
     except Exception as e:
-        return {"error": f"An unexpected error occurred: {str(e)}"}
+        # Retorna uma mensagem de erro se a transcrição falhar
+        return {"error": str(e)}
 
-@app.get("/get-transcript/")
-def get_transcript(url: str):
+@app.get("/get-transcript")
+async def get_transcript(url: str):
     try:
-        video_id = extract_video_id(url)
+        # Faz o parse da URL para obter o video_id
+        parsed_url = urlparse(url)
+        video_id = parse_qs(parsed_url.query).get('v', [None])[0]
+
+        if not video_id:
+            return {"error": "Video ID not found in the URL"}
+
+        # Gera a transcrição
         transcript = generate_transcript(video_id)
+
+        # Retorna a transcrição como resposta
         return {"transcript": transcript}
-    except ValueError as e:
+    except Exception as e:
+        # Retorna uma mensagem de erro em caso de exceção
         return {"error": str(e)}
